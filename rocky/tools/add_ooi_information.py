@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+from time import sleep
 from dataclasses import dataclass
 from itertools import product
 from typing import Dict, List, Optional, Tuple, Union
@@ -35,22 +36,30 @@ class _PortInfo:
     protocols: list
     description: str
 
-
 def cve_info(cve_id: str) -> dict:
     """Uses the ares module to find information on cves"""
-    cve_search = CVESearch()
-    cve_information = cve_search.id(cve_id)
+    url_nist = f"https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={cve_id}"
+    page = requests.get(url_nist,headers={'ApiKey':'thisneedstobevalid'}) #https://nvd.nist.gov/developers/request-an-api-key
+    sleep(1)
 
-    if cve_information:
-        return {
-            "description": cve_information.get("summary"),
-            "cvss": cve_information.get("cvss"),
-            "source": f"https://cve.circl.lu/cve/{cve_id}",
-            "information updated": datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S"),
-        }
+    if page.status_code == 200:
+        page_parsed = page.json()
+        if "cvssMetricV2" in page_parsed["vulnerabilities"][0]["cve"]["metrics"]:
+            return {
+                "description": page_parsed["vulnerabilities"][0]["cve"]["descriptions"][0]["value"],
+                "cvss": page_parsed["vulnerabilities"][0]["cve"]["metrics"]["cvssMetricV2"][0]["cvssData"]["baseScore"],
+                "source": f"https://nvd.nist.gov/vuln/detail/{cve_id}",
+                "information updated": datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S"),
+            }
+        elif "cvssMetricV31" in page_parsed["vulnerabilities"][0]["cve"]["metrics"]:
+            return {
+                "description": page_parsed["vulnerabilities"][0]["cve"]["descriptions"][0]["value"],
+                "cvss": page_parsed["vulnerabilities"][0]["cve"]["metrics"]["cvssMetricV31"][0]["cvssData"]["baseScore"],
+                "source": f"https://nvd.nist.gov/vuln/detail/{cve_id}",
+                "information updated": datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S"),
+            }
 
     return {"description": "Not found"}
-
 
 def snyk_info(snyk_id: str) -> dict:
     """Uses the ares module to find information on cves"""
